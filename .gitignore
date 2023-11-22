@@ -1,0 +1,6 @@
+*~
+*.swp
+cup
+bin
+bin\*
+*.exe
