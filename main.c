@@ -3,8 +3,6 @@
 #include <string.h>
 #include <winsock2.h>
 
-#include "cup/strutils/strutils.h"
-
 // limits requests to 1MB
 static uint8_t internal_buffer[0x100000];
 

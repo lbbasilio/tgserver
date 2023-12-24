@@ -1,4 +1,4 @@
-rm main.exe bin\strutils.o bin\main.o
-gcc -g -c -I"cup/strutils" -o bin\strutils.o cup\strutils\strutils.c 
+rm main.exe bin\main.o
+gcc -g -c -o bin\http_parser.o http_parser\http_parser.c
 gcc -g -c -o bin\main.o main.c
-gcc -g -o main.exe bin\main.o bin\strutils.o -lws2_32
+gcc -g -o main.exe bin\main.o bin\http_parser.o -lws2_32
