@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include "http_parser/http_parser.h"
+#include <assert.h>
 
 // limits requests to 1MB
 static uint8_t internal_buffer[0x100000];
@@ -17,6 +18,8 @@ static int32_t soc;
 static char response_internal_server_error[] = "HTTP/1.1 500 Internal Server Error\r\nServer: TG\r\nContent-Type: text/html\r\nContent-Length: 20\r\n\r\nSomething went wrong";
 
 static char response_not_found_error[] = "HTTP/1.1 404 Not Found\r\nServer: TG\r\nContent-Type: text/html\r\nContent-Length: 28\r\n\r\nNothing here but us chickens";
+
+hashtable_t* file_types;
 
 void sanitize_target(char* target) {
 	size_t len = strlen(target);
@@ -38,13 +41,24 @@ int32_t proc_request(int32_t conn, http_request_t* req)
 
 	sanitize_target(target);
 	FILE* file = fopen(target + 1, "rb");
-	if (!file) return 1;
+	if (!file) return 1;	
+
+	char* slash = strrchr(target, '/');
+	if (!slash) slash = target;
+	char* dot = strrchr(slash, '.');
+	
+	char default_type[] = "application/octet-stream";
+	char* file_type = default_type;
+	if (dot) {	
+		file_type = hashtable_get(file_types, dot + 1);
+		if (!file_type) file_type = default_type;
+	}
 
 	fseek(file, 0, SEEK_END);
 	size_t content_len = ftell(file);
 	fseek(file, 0, SEEK_SET);
 
-	snprintf(internal_buffer, sizeof(internal_buffer), "HTTP/1.1 200 OK\r\nContent-Length: %ld\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n", content_len);
+	snprintf(internal_buffer, sizeof(internal_buffer), "HTTP/1.1 200 OK\r\nContent-Length: %ld\r\nContent-Type: %s\r\n\r\n", content_len, file_type);
 	size_t header_len = strlen(internal_buffer);
 
 	if (content_len + header_len >= sizeof(internal_buffer)) return 1;
@@ -142,6 +156,37 @@ void setup_signals()
 		sigaction(SIGTERM, &new_action, NULL);
 }
 
+void setup_file_types()
+{
+	char* files[] = {
+		"html",
+		"js",
+		"css",
+		"jpg",
+		"jpeg",
+		"png",
+		"c",
+		"h",
+		"sh"
+	};
+	char* types[] = {
+		"text/html; charset=utf-8",
+		"text/javascript; charset=utf-8",
+		"text/css; charset=utf-8",
+		"image/jpeg",
+		"image/jpeg",
+		"image/png",
+		"text/plain; charset=utf-8",
+		"text/plain; charset=utf-8",
+		"text/plain; charset=utf-8",
+	};
+	assert(sizeof(types) == sizeof(files) && "File type dictionary definitions diverge");
+
+	file_types = hashtable_alloc();
+	for (size_t i = 0; i < sizeof(types) / sizeof(char*); ++i) 
+		hashtable_set(file_types, files[i], types[i], strlen(types[i]) + 1);
+}
+
 int32_t main() 
 {
 	int32_t status;
@@ -151,6 +196,7 @@ int32_t main()
 	}
 
 	setup_signals();
+	setup_file_types();
 
 	for(;;) {
 		int32_t conn;
